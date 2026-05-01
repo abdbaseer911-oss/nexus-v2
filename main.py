@@ -10,7 +10,6 @@ import google.generativeai as genai
 
 load_dotenv()
 
-# Securely retrieve the keys from the environment
 FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY")
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
@@ -28,8 +27,6 @@ app.add_middleware(
 )
 
 FH_BASE = "https://finnhub.io/api/v1"
-
-# ── helpers ───────────────────────────────────────────────────────────────────
 
 async def fh_get(path: str) -> dict:
     if not FINNHUB_KEY:
@@ -54,8 +51,6 @@ def fmt_vol(v):
     if v >= 1e6: return f"{v/1e6:.1f}M"
     if v >= 1e3: return f"{v/1e3:.0f}K"
     return str(int(v))
-
-# ── endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/api/quote/{ticker}")
 async def get_quote(ticker: str):
@@ -96,7 +91,6 @@ async def get_quote(ticker: str):
     except Exception as e:
         raise HTTPException(500, str(e))
 
-
 @app.get("/api/news/{ticker}")
 async def get_news(ticker: str):
     from datetime import date, timedelta
@@ -122,7 +116,6 @@ async def get_news(ticker: str):
         raise
     except Exception as e:
         raise HTTPException(500, str(e))
-
 
 @app.get("/api/candles/{ticker}")
 async def get_candles(ticker: str, range: str = "1mo"):
@@ -153,7 +146,6 @@ async def get_candles(ticker: str, range: str = "1mo"):
     except Exception as e:
         raise HTTPException(500, str(e))
 
-
 @app.get("/api/search")
 async def search(q: str):
     try:
@@ -165,7 +157,6 @@ async def search(q: str):
         return {"results": [{"symbol": r["symbol"], "name": r["description"]} for r in results]}
     except Exception as e:
         raise HTTPException(500, str(e))
-
 
 @app.get("/api/indices")
 async def get_indices():
@@ -186,7 +177,6 @@ async def get_indices():
             results.append({"symbol": sym, "name": labels.get(sym, sym), "price": None, "changePct": 0})
     return {"indices": results}
 
-
 @app.get("/api/movers")
 async def get_movers(type: str = "gainers"):
     watchlist = ["AAPL","NVDA","MSFT","TSLA","AMZN","GOOGL","META","JPM","V","WMT",
@@ -204,36 +194,29 @@ async def get_movers(type: str = "gainers"):
     else:                  results.sort(key=lambda x: abs(x["changePct"]), reverse=True)
     return {"movers": results[:8]}
 
-
 @app.get("/api/intelligence/{ticker}")
 async def get_intelligence(ticker: str):
     ticker = ticker.upper().strip()
-
     if not GEMINI_KEY:
         return {
-            "sentiment": "Neutral",
-            "score": 50,
+            "sentiment": "Neutral", "score": 50,
             "verdict": "Configure GEMINI_API_KEY in Render environment variables to enable AI intelligence.",
             "risks": ["API key not configured"],
             "catalysts": ["Add GEMINI_API_KEY to enable full analysis"],
             "recommendation": "Hold"
         }
-
     try:
         from datetime import date, timedelta
         to_date   = date.today().isoformat()
         from_date = (date.today() - timedelta(days=5)).isoformat()
-
         quote_data   = await fh_get(f"/quote?symbol={ticker}")
         profile_data = await fh_get(f"/stock/profile2?symbol={ticker}")
         news_data    = await fh_get(f"/company-news?symbol={ticker}&from={from_date}&to={to_date}")
-
         price    = quote_data.get("c", "N/A")
         chg_pct  = quote_data.get("dp", 0)
         name     = profile_data.get("name", ticker)
         sector   = profile_data.get("finnhubIndustry", "Unknown")
         headlines = "\n".join([f"- {n['headline']}" for n in (news_data[:8] if isinstance(news_data, list) else [])])
-
         prompt = f"""You are an elite Wall Street analyst AI. Analyze {name} ({ticker}).
 
 Current Price: ${price} | Change: {chg_pct:+.2f}% today
@@ -251,26 +234,20 @@ Respond ONLY with a valid JSON object in this exact format:
   "catalysts": ["<catalyst 1>", "<catalyst 2>"],
   "recommendation": "Strong Buy" or "Buy" or "Hold" or "Sell" or "Strong Sell"
 }}
-
 Be specific, data-driven, and direct. No fluff."""
-
         model    = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
         raw      = response.text.strip()
-
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
-
         parsed = json.loads(raw.strip())
         return parsed
-
     except json.JSONDecodeError:
         return {"sentiment":"Neutral","score":50,"verdict":"AI analysis temporarily unavailable — JSON parse error.","risks":[],"catalysts":[],"recommendation":"Hold"}
     except Exception as e:
         raise HTTPException(500, str(e))
-
 
 @app.get("/api/health")
 async def health():
@@ -280,8 +257,6 @@ async def health():
         "gemini":  "configured" if GEMINI_KEY  else "missing",
     }
 
-
-# ── serve frontend ────────────────────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
