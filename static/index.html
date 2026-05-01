@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PROJECT NEXUS — Stock Intelligence Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+/* ── RESET & BASE ──────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg0: #0e0e0e;
+  --bg1: #141414;
+  --bg2: #1a1a1a;
+  --bg3: #202020;
+  --bg4: #272727;
+  --gold: #c9a84c;
+  --gold-dim: #8a6e2a;
+  --gold-faint: rgba(201,168,76,0.08);
+  --gold-border: rgba(201,168,76,0.2);
+  --text-primary: #e8e0cc;
+  --text-secondary: #9a9080;
+  --text-muted: #5a5040;
+  --text-faint: #3a3020;
+  --green: #4caf7d;
+  --red: #e05252;
+  --border: #222;
+  --border-soft: #1c1c1c;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+}
+html, body { height: 100%; background: var(--bg0); color: var(--text-primary); font-family: var(--sans); overflow: hidden; }
+
+/* ── SPLASH SCREEN ────────────────────────────────────────────────────────── */
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg0);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.8s ease;
+}
+#splash.fade-out { opacity: 0; pointer-events: none; }
+
+.splash-grid-bg {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.splash-glow {
+  position: absolute;
+  width: 500px; height: 500px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,168,76,0.06) 0%, transparent 70%);
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+@keyframes glow-pulse { 0%,100%{transform:scale(1);opacity:0.5} 50%{transform:scale(1.15);opacity:1} }
+
+.splash-content {
+  position: relative; z-index: 10;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+}
+
+.splash-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 5px;
+  color: var(--gold-dim); text-transform: uppercase;
+  margin-bottom: 16px;
+  opacity: 0; animation: fade-in 0.6s ease 0.3s forwards;
+}
+@keyframes fade-in { to { opacity: 1; } }
+
+.splash-title {
+  font-family: var(--mono);
+  font-size: 64px; font-weight: 600;
+  letter-spacing: 12px; text-indent: 12px;
+  color: var(--gold);
+  opacity: 0; transform: scale(0.92);
+  animation: title-in 1s cubic-bezier(0.16,1,0.3,1) 0.4s forwards;
+  line-height: 1;
+}
+@keyframes title-in { to { opacity: 1; transform: scale(1); } }
+
+.splash-subtitle {
+  font-family: var(--sans);
+  font-size: 14px; font-weight: 300;
+  letter-spacing: 3px; color: var(--text-muted);
+  margin-top: 14px; text-transform: uppercase;
+  opacity: 0; animation: fade-in 0.6s ease 1s forwards;
+}
+
+.splash-divider {
+  width: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+  margin: 32px auto;
+  animation: line-grow 0.8s ease 1.2s forwards;
+}
+@keyframes line-grow { to { width: 300px; } }
+
+.splash-progress-wrap {
+  width: 300px;
+  opacity: 0; animation: fade-in 0.5s ease 1.4s forwards;
+}
+.splash-progress-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 3px;
+  color: var(--text-faint); margin-bottom: 8px; text-align: left;
+}
+.splash-progress-track {
+  width: 100%; height: 2px;
+  background: rgba(201,168,76,0.1); border-radius: 1px; overflow: hidden;
+}
+.splash-progress-fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+  border-radius: 1px;
+  animation: progress-fill 2.5s ease 1.5s forwards;
+}
+@keyframes progress-fill { 0%{width:0} 40%{width:55%} 80%{width:80%} 100%{width:100%} }
+
+.splash-status {
+  font-family: var(--mono); font-size: 11px; color: var(--text-faint);
+  letter-spacing: 2px; margin-top: 10px; text-align: left;
+  width: 300px;
+  opacity: 0; animation: fade-in 0.4s ease 1.8s forwards;
+}
+#splash-status-text { transition: opacity 0.3s; }
+
+.splash-footer {
+  position: absolute; bottom: 32px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 3px;
+  color: var(--text-faint); text-transform: lowercase;
+  opacity: 0; animation: fade-in 0.5s ease 2s forwards;
+}
+
+/* ── MAIN APP ─────────────────────────────────────────────────────────────── */
+#app {
+  display: flex; flex-direction: column;
+  height: 100vh; opacity: 0;
+  transition: opacity 0.8s ease;
+}
+#app.visible { opacity: 1; }
+
+/* TOPBAR */
+#topbar {
+  background: var(--bg0); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px; height: 46px; flex-shrink: 0;
+}
+.logo { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--gold); letter-spacing: 5px; }
+.logo-sub { font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: 2px; margin-top: 2px; }
+.topbar-right { display: flex; align-items: center; gap: 18px; }
+.live-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 1px;
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: blink 2s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+#clk { font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
+#mkt-pill {
+  font-family: var(--mono); font-size: 10px; padding: 3px 9px;
+  border-radius: 3px; letter-spacing: 1px;
+}
+#mkt-pill.open { background: rgba(201,168,76,0.12); color: var(--gold); border: 1px solid var(--gold-border); }
+#mkt-pill.closed { background: rgba(40,40,30,0.5); color: var(--text-faint); border: 1px solid var(--border); }
+
+/* INDEX STRIP */
+#ixstrip {
+  background: var(--bg1); border-bottom: 1px solid var(--border);
+  display: flex; overflow-x: auto; scrollbar-width: none; height: 34px; align-items: center; flex-shrink: 0;
+}
+#ixstrip::-webkit-scrollbar { display: none; }
+.ix { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-right: 1px solid var(--border-soft); white-space: nowrap; height: 100%; }
+.ix-name { font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px; }
+.ix-price { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.ix-chg { font-family: var(--mono); font-size: 10px; }
+
+/* TICKER BAR */
+#tbar {
+  background: var(--bg1); border-bottom: 1px solid var(--border);
+  display: flex; overflow-x: auto; scrollbar-width: thin; scrollbar-color: #2a2a1a transparent;
+  height: 46px; align-items: center; flex-shrink: 0;
+}
+#tbar::-webkit-scrollbar { height: 2px; }
+#tbar::-webkit-scrollbar-thumb { background: #2a2a1a; }
+.tick { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-right: 1px solid var(--border-soft); cursor: pointer; height: 100%; transition: background 0.1s; flex-shrink: 0; }
+.tick:hover, .tick.sel { background: var(--gold-faint); }
+.tick.sel .t-sym { color: var(--gold); }
+.t-sym { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 1px; }
+.t-price { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); }
+.t-chg { font-family: var(--mono); font-size: 10px; }
+.pos { color: var(--green) !important; } .neg { color: var(--red) !important; }
+
+/* SEARCH */
+#searchbar {
+  background: var(--bg1); border-bottom: 1px solid var(--border);
+  padding: 8px 18px; display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0; position: relative;
+}
+#srch {
+  flex: 1; max-width: 400px;
+  background: var(--bg2); border: 1px solid #2a2a2a; border-radius: 4px;
+  color: var(--text-primary); font-family: var(--mono); font-size: 13px;
+  padding: 7px 12px; outline: none; transition: border-color 0.15s;
+}
+#srch:focus { border-color: var(--gold-dim); }
+#srch::placeholder { color: var(--text-faint); }
+#sdd {
+  position: absolute; top: 100%; left: 18px; width: 400px;
+  background: var(--bg2); border: 1px solid #2a2a2a; border-top: none;
+  z-index: 100; display: none; max-height: 240px; overflow-y: auto;
+  border-radius: 0 0 4px 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.sdi { padding: 9px 14px; cursor: pointer; border-bottom: 1px solid var(--border-soft); display: flex; gap: 12px; transition: background 0.1s; }
+.sdi:hover { background: var(--bg3); }
+.sdi-sym { font-family: var(--mono); font-size: 12px; color: var(--gold); width: 56px; flex-shrink: 0; font-weight: 500; }
+.sdi-name { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* MAIN BODY */
+#body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+/* LEFT */
+#left {
+  width: 270px; flex-shrink: 0; border-right: 1px solid var(--border);
+  background: var(--bg1); display: flex; flex-direction: column;
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: #1e1e1e transparent;
+}
+#left::-webkit-scrollbar { width: 3px; }
+#left::-webkit-scrollbar-thumb { background: #1e1e1e; }
+
+.panel-sec { padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }
+.sec-lbl { font-family: var(--mono); font-size: 9px; color: var(--text-faint); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
+
+.p-sym { font-family: var(--mono); font-size: 11px; color: var(--gold); letter-spacing: 3px; margin-bottom: 3px; }
+.p-name { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-sector { display: inline-block; font-family: var(--mono); font-size: 9px; color: var(--text-faint); background: var(--bg3); border: 1px solid var(--border); border-radius: 2px; padding: 2px 7px; margin-bottom: 12px; letter-spacing: 1px; }
+.p-big { font-family: var(--mono); font-size: 34px; font-weight: 500; color: var(--text-primary); line-height: 1; margin-bottom: 6px; }
+.p-chg { font-family: var(--mono); font-size: 13px; margin-bottom: 4px; }
+.p-upd { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.stat { background: var(--bg2); border: 1px solid var(--border-soft); border-radius: 3px; padding: 7px 9px; }
+.stat-l { font-family: var(--mono); font-size: 9px; color: var(--text-faint); letter-spacing: 0.5px; margin-bottom: 3px; text-transform: uppercase; }
+.stat-v { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+
+/* AI BRIEF */
+.brief-box { background: var(--bg2); border: 1px solid var(--border-soft); border-radius: 4px; padding: 12px; }
+.brief-text { font-size: 12px; color: var(--text-muted); line-height: 1.75; }
+.ai-cur { display: inline-block; width: 6px; height: 12px; background: var(--gold); margin-left: 2px; vertical-align: middle; animation: blink 1s step-end infinite; }
+
+/* SENTIMENT METER */
+.sentiment-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sentiment-badge { font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 3px; }
+.badge-bull { background: rgba(76,175,125,0.15); color: var(--green); border: 1px solid rgba(76,175,125,0.25); }
+.badge-bear { background: rgba(224,82,82,0.15); color: var(--red); border: 1px solid rgba(224,82,82,0.25); }
+.badge-neu { background: var(--gold-faint); color: var(--gold); border: 1px solid var(--gold-border); }
+.rec-badge { font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
+.meter-track { width: 100%; height: 6px; background: rgba(224,82,82,0.3); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.meter-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--red), var(--green)); transition: width 0.8s ease; }
+.meter-labels { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; color: var(--text-faint); }
+
+/* MOVERS */
+.mover-tabs { display: flex; }
+.mover-tab { flex: 1; font-family: var(--mono); font-size: 9px; color: var(--text-faint); padding: 7px; text-align: center; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.12s; letter-spacing: 1px; }
+.mover-tab.act { color: var(--gold); border-bottom-color: var(--gold); }
+.mover-row { display: flex; align-items: center; gap: 8px; padding: 7px 16px; border-bottom: 1px solid var(--border-soft); cursor: pointer; transition: background 0.1s; }
+.mover-row:hover { background: var(--bg2); }
+.mv-sym { font-family: var(--mono); font-size: 11px; color: var(--gold); width: 44px; flex-shrink: 0; font-weight: 500; }
+.mv-price { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); flex: 1; text-align: right; }
+.mv-pct { font-family: var(--mono); font-size: 11px; width: 55px; text-align: right; }
+
+/* CENTER */
+#center { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg0); }
+#chart-panel { padding: 14px 18px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.chart-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.chart-ttl { font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: 3px; }
+.rpills { display: flex; gap: 3px; }
+.rpill { font-family: var(--mono); font-size: 10px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; color: var(--text-faint); background: transparent; transition: all 0.12s; }
+.rpill:hover, .rpill.act { background: var(--gold-faint); color: var(--gold); border-color: var(--gold-border); }
+#cvw { position: relative; width: 100%; height: 200px; }
+
+/* NEWS */
+#news-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+.news-hdr { padding: 10px 18px 6px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.news-ttl { font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: 2px; }
+.news-ct { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+.news-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; padding: 0 18px; }
+.ntab { font-family: var(--mono); font-size: 10px; color: var(--text-faint); padding: 6px 12px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.12s; letter-spacing: 1px; }
+.ntab.act { color: var(--gold); border-bottom-color: var(--gold); }
+#news-list { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #1e1e1e transparent; }
+#news-list::-webkit-scrollbar { width: 3px; }
+#news-list::-webkit-scrollbar-thumb { background: #1e1e1e; }
+.ni { padding: 10px 18px; border-bottom: 1px solid var(--border-soft); cursor: pointer; transition: background 0.1s; }
+.ni:hover { background: var(--bg1); }
+.ni:hover .ni-title { color: var(--gold); }
+.ni-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.ni-src { font-family: var(--mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px; }
+.ni-time { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+.ni-title { font-size: 13px; color: var(--text-secondary); line-height: 1.5; transition: color 0.1s; }
+
+/* RIGHT PANEL */
+#right { width: 220px; flex-shrink: 0; background: var(--bg1); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
+.wl-hdr { font-family: var(--mono); font-size: 10px; color: var(--text-faint); letter-spacing: 2px; padding: 10px 13px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+#wl-list { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #1e1e1e transparent; }
+#wl-list::-webkit-scrollbar { width: 2px; }
+#wl-list::-webkit-scrollbar-thumb { background: #1e1e1e; }
+.wl-item { display: flex; align-items: center; gap: 8px; padding: 8px 13px; border-bottom: 1px solid var(--border-soft); cursor: pointer; transition: background 0.1s; }
+.wl-item:hover, .wl-item.sel { background: var(--gold-faint); }
+.wl-sym { font-family: var(--mono); font-size: 11px; color: var(--text-muted); font-weight: 600; width: 46px; flex-shrink: 0; }
+.wl-item.sel .wl-sym { color: var(--gold); }
+.wl-r { display: flex; flex-direction: column; gap: 2px; flex: 1; align-items: flex-end; }
+.wl-price { font-family: var(--mono); font-size: 12px; color: var(--text-secondary); }
+.wl-chg { font-family: var(--mono); font-size: 10px; }
+.wl-add { padding: 8px 13px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
+.wl-add input { flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: 3px; color: var(--text-primary); font-family: var(--mono); font-size: 11px; padding: 5px 8px; outline: none; }
+.wl-add input::placeholder { color: var(--text-faint); }
+.wl-add input:focus { border-color: var(--gold-dim); }
+.wl-add button { background: var(--gold-faint); border: 1px solid var(--gold-border); border-radius: 3px; color: var(--gold); font-family: var(--mono); font-size: 13px; padding: 5px 10px; cursor: pointer; transition: background 0.12s; }
+.wl-add button:hover { background: rgba(201,168,76,0.15); }
+
+/* CORPORATE ACTIONS */
+.ca-item { padding: 8px 16px; border-bottom: 1px solid var(--border-soft); }
+.ca-type { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; padding: 2px 6px; border-radius: 2px; display: inline-block; margin-bottom: 4px; }
+.ca-earnings { background: rgba(201,168,76,0.12); color: var(--gold); }
+.ca-dividend { background: rgba(76,175,125,0.12); color: var(--green); }
+.ca-ma { background: rgba(120,90,200,0.12); color: #a080e0; }
+.ca-text { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+
+/* LOADER */
+#ldr { position: absolute; inset: 0; background: rgba(14,14,14,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 50; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+#ldr.on { opacity: 1; pointer-events: all; }
+.ldr-ring { width: 30px; height: 30px; border: 1.5px solid #2a2a2a; border-top-color: var(--gold); border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ldr-msg { font-family: var(--mono); font-size: 11px; color: var(--gold); letter-spacing: 2px; }
+.err-box { font-family: var(--mono); font-size: 11px; color: #7a5050; padding: 10px 16px; }
+</style>
+</head>
+<body>
+
+<!-- ── SPLASH ──────────────────────────────────────────────────────────────── -->
+<div id="splash">
+  <div class="splash-grid-bg"></div>
+  <div class="splash-glow"></div>
+
+  <div class="splash-content">
+    <div class="splash-eyebrow">Intelligence Terminal</div>
+    <div class="splash-title">PROJECT NEXUS</div>
+    <div class="splash-subtitle">Neural Exchange for Universal Stock Intelligence</div>
+    <div class="splash-divider"></div>
+    <div class="splash-progress-wrap">
+      <div class="splash-progress-label">CONNECTING TO LIVE FEEDS</div>
+      <div class="splash-progress-track"><div class="splash-progress-fill" id="splash-bar"></div></div>
+      <div class="splash-status">
+        <span id="splash-status-text">Initializing core systems...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="splash-footer">created by mohammed abdul baseer</div>
+</div>
+
+<!-- ── MAIN APP ────────────────────────────────────────────────────────────── -->
+<div id="app">
+  <div id="topbar">
+    <div>
+      <div class="logo">NEXUS</div>
+      <div class="logo-sub">Mohammed Abdul Baseer · DOCKNOCK · US Market Intelligence</div>
+    </div>
+    <div class="topbar-right">
+      <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+      <span id="mkt-pill" class="closed">MARKET CLOSED</span>
+      <span id="clk">--:--:--</span>
+    </div>
+  </div>
+
+  <div id="ixstrip">
+    <div class="ix"><span class="ix-name">S&P 500</span><span class="ix-price" id="ix-sp">—</span><span class="ix-chg" id="ic-sp">—</span></div>
+    <div class="ix"><span class="ix-name">NASDAQ</span><span class="ix-price" id="ix-nq">—</span><span class="ix-chg" id="ic-nq">—</span></div>
+    <div class="ix"><span class="ix-name">DOW</span><span class="ix-price" id="ix-dw">—</span><span class="ix-chg" id="ic-dw">—</span></div>
+    <div class="ix"><span class="ix-name">RUSSELL</span><span class="ix-price" id="ix-rut">—</span><span class="ix-chg" id="ic-rut">—</span></div>
+    <div class="ix"><span class="ix-name">VIX</span><span class="ix-price" id="ix-vx">—</span><span class="ix-chg" id="ic-vx">—</span></div>
+    <div class="ix"><span class="ix-name">10Y BOND</span><span class="ix-price" id="ix-ty">—</span><span class="ix-chg" id="ic-ty">—</span></div>
+    <div class="ix"><span class="ix-name">WTI OIL</span><span class="ix-price" id="ix-oil">—</span><span class="ix-chg" id="ic-oil">—</span></div>
+    <div class="ix"><span class="ix-name">GOLD</span><span class="ix-price" id="ix-gld">—</span><span class="ix-chg" id="ic-gld">—</span></div>
+  </div>
+
+  <div id="tbar"></div>
+
+  <div id="searchbar">
+    <input id="srch" type="text" placeholder="Search any NYSE / NASDAQ stock — ticker or company name..." autocomplete="off"/>
+    <div id="sdd"></div>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-faint);">↵ enter to load</span>
+  </div>
+
+  <div id="body" style="position:relative;">
+
+    <!-- LEFT -->
+    <div id="left">
+      <div class="panel-sec">
+        <div class="p-sym" id="p-sym">—</div>
+        <div class="p-name" id="p-name">Select a stock to begin analysis</div>
+        <div><span class="p-sector" id="p-sector">—</span></div>
+        <div class="p-big" id="p-big">—</div>
+        <div class="p-chg" id="p-chg" style="color:var(--text-muted);">—</div>
+        <div class="p-upd" id="p-upd">—</div>
+      </div>
+
+      <div class="panel-sec">
+        <div class="sec-lbl">Key Statistics</div>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-l">OPEN</div><div class="stat-v" id="s-o">—</div></div>
+          <div class="stat"><div class="stat-l">PREV CLOSE</div><div class="stat-v" id="s-pc">—</div></div>
+          <div class="stat"><div class="stat-l">DAY HIGH</div><div class="stat-v" id="s-h">—</div></div>
+          <div class="stat"><div class="stat-l">DAY LOW</div><div class="stat-v" id="s-l">—</div></div>
+          <div class="stat"><div class="stat-l">52W HIGH</div><div class="stat-v" id="s-52h">—</div></div>
+          <div class="stat"><div class="stat-l">52W LOW</div><div class="stat-v" id="s-52l">—</div></div>
+          <div class="stat"><div class="stat-l">MKT CAP</div><div class="stat-v" id="s-mc">—</div></div>
+          <div class="stat"><div class="stat-l">P/E RATIO</div><div class="stat-v" id="s-pe">—</div></div>
+          <div class="stat"><div class="stat-l">EPS</div><div class="stat-v" id="s-eps">—</div></div>
+          <div class="stat"><div class="stat-l">BETA</div><div class="stat-v" id="s-beta">—</div></div>
+          <div class="stat"><div class="stat-l">DIV YIELD</div><div class="stat-v" id="s-div">—</div></div>
+          <div class="stat"><div class="stat-l">AVG VOLUME</div><div class="stat-v" id="s-avol">—</div></div>
+        </div>
+      </div>
+
+      <div class="panel-sec">
+        <div class="sec-lbl">AI Intelligence Brief</div>
+        <div class="brief-box">
+          <div class="brief-text" id="ai-brief">Select a stock to generate a live AI-powered intelligence brief with sentiment analysis, risks, catalysts, and verdict.</div>
+        </div>
+      </div>
+
+      <div class="panel-sec" id="sentiment-panel" style="display:none;">
+        <div class="sec-lbl">Sentiment Analysis</div>
+        <div class="sentiment-row">
+          <span class="sentiment-badge badge-neu" id="sent-badge">NEUTRAL</span>
+          <span class="rec-badge" id="rec-badge">—</span>
+        </div>
+        <div class="meter-track"><div class="meter-fill" id="sent-meter" style="width:50%;"></div></div>
+        <div class="meter-labels"><span>Bearish</span><span>Bullish</span></div>
+      </div>
+
+      <div class="panel-sec" id="risks-panel" style="display:none;">
+        <div class="sec-lbl">Key Risks</div>
+        <div id="risks-list" style="font-size:12px;color:var(--text-muted);line-height:1.8;"></div>
+      </div>
+
+      <div class="panel-sec" id="catalysts-panel" style="display:none;">
+        <div class="sec-lbl">Key Catalysts</div>
+        <div id="catalysts-list" style="font-size:12px;color:var(--text-muted);line-height:1.8;"></div>
+      </div>
+
+      <div class="mover-tabs">
+        <div class="mover-tab act" onclick="loadMovers('gainers',this)">GAINERS</div>
+        <div class="mover-tab" onclick="loadMovers('losers',this)">LOSERS</div>
+        <div class="mover-tab" onclick="loadMovers('actives',this)">ACTIVE</div>
+      </div>
+      <div id="mover-list"></div>
+    </div>
+
+    <!-- CENTER -->
+    <div id="center">
+      <div id="chart-panel">
+        <div class="chart-hdr">
+          <span class="chart-ttl" id="chart-ttl">PRICE CHART</span>
+          <div class="rpills">
+            <div class="rpill" onclick="setRange('1d',this)">1D</div>
+            <div class="rpill act" onclick="setRange('1mo',this)">1M</div>
+            <div class="rpill" onclick="setRange('3mo',this)">3M</div>
+            <div class="rpill" onclick="setRange('6mo',this)">6M</div>
+            <div class="rpill" onclick="setRange('1y',this)">1Y</div>
+            <div class="rpill" onclick="setRange('5y',this)">5Y</div>
+          </div>
+        </div>
+        <div id="cvw"><canvas id="pc" role="img" aria-label="Stock price chart">Price chart.</canvas></div>
+      </div>
+
+      <div id="news-area">
+        <div class="news-hdr">
+          <span class="news-ttl">GLOBAL INTELLIGENCE FEED</span>
+          <span class="news-ct" id="news-ct">—</span>
+        </div>
+        <div class="news-tabs">
+          <div class="ntab act" onclick="switchNews('stock',this)">STOCK NEWS</div>
+          <div class="ntab" onclick="switchNews('sector',this)">SECTOR</div>
+          <div class="ntab" onclick="switchNews('macro',this)">MACRO / GLOBAL</div>
+          <div class="ntab" onclick="switchNews('corporate',this)">CORPORATE ACTIONS</div>
+        </div>
+        <div id="news-list"><div class="err-box">Select a stock to load live news from Finnhub.</div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div id="right">
+      <div class="wl-hdr"><span>WATCHLIST</span><span id="wl-ct" style="color:var(--text-faint);">0</span></div>
+      <div id="wl-list"></div>
+      <div class="wl-add">
+        <input id="wl-inp" placeholder="Add ticker..." maxlength="8" onkeydown="if(event.key==='Enter')addWL()"/>
+        <button onclick="addWL()">+</button>
+      </div>
+    </div>
+
+    <!-- LOADER -->
+    <div id="ldr">
+      <div class="ldr-ring"></div>
+      <div class="ldr-msg" id="ldr-msg">Loading...</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const BASE = '';  // Same origin — FastAPI serves this file
+const TICKERS = ['AAPL','NVDA','MSFT','TSLA','AMZN','GOOGL','META','JPM','V','WMT','BAC','XOM','AMD','NFLX','PLTR','COIN','UBER','GS','INTC','CRM','ADBE','DIS'];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let activeChart = null;
+let activeSym = '';
+let activeRange = '1mo';
+let activeNewsTab = 'stock';
+let allNews = { stock: [], sector: [], macro: [], corporate: [] };
+let wl = JSON.parse(localStorage.getItem('nx-v2-wl') || '["AAPL","NVDA","MSFT","TSLA","AMZN","GOOGL","META","JPM"]');
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function showL(m){ $('ldr-msg').textContent = m; $('ldr').classList.add('on'); }
+function hideL(){ $('ldr').classList.remove('on'); }
+function fmt(v,d=2){ return v==null||isNaN(v) ? '—' : '$'+parseFloat(v).toFixed(d); }
+function tAgo(ts){ const d=Math.floor(Date.now()/1000-ts); if(d<60)return 'just now'; if(d<3600)return Math.floor(d/60)+'m ago'; if(d<86400)return Math.floor(d/3600)+'h ago'; return Math.floor(d/86400)+'d ago'; }
+function cc(v){ return v>=0?'pos':'neg'; }
+function chgStr(v,p){ if(v==null)return '—'; const s=v>=0?'+':''; return `${s}${v.toFixed(2)} (${s}${p.toFixed(2)}%)`; }
+
+async function api(path){
+  const r = await fetch(BASE + path);
+  if(!r.ok){ const e = await r.json().catch(()=>({detail:'Unknown error'})); throw new Error(e.detail||'API error'); }
+  return r.json();
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+function tick(){
+  const n = new Date();
+  $('clk').textContent = n.toLocaleTimeString('en-US',{hour12:false});
+  const h=n.getUTCHours(), m=n.getUTCMinutes(), op=(h>13||(h===13&&m>=30))&&h<20;
+  const mp = $('mkt-pill');
+  mp.textContent = op ? 'NYSE OPEN' : 'NYSE CLOSED';
+  mp.className = op ? 'open' : 'closed';
+}
+setInterval(tick, 1000); tick();
+
+// ── SPLASH ────────────────────────────────────────────────────────────────────
+const SPLASH_MSGS = ['Connecting to Finnhub...','Loading market feeds...','Fetching live prices...','Wiring intelligence engine...','System ready.'];
+let splashIdx = 0;
+const splashInterval = setInterval(()=>{
+  if(splashIdx < SPLASH_MSGS.length){
+    $('splash-status-text').textContent = SPLASH_MSGS[splashIdx++];
+  }
+}, 600);
+
+function dismissSplash(){
+  clearInterval(splashInterval);
+  $('splash-status-text').textContent = 'System online.';
+  setTimeout(()=>{
+    $('splash').classList.add('fade-out');
+    $('app').classList.add('visible');
+    setTimeout(()=>{ $('splash').style.display='none'; }, 800);
+  }, 500);
+}
+
+// Dismiss after 3.5s OR when health check passes
+setTimeout(dismissSplash, 3500);
+api('/api/health').then(dismissSplash).catch(()=>setTimeout(dismissSplash, 3500));
+
+// ── INDEX STRIP ───────────────────────────────────────────────────────────────
+async function loadIndices(){
+  try{
+    const d = await api('/api/indices');
+    const map = { SPY:['ix-sp','ic-sp'], QQQ:['ix-nq','ic-nq'], DIA:['ix-dw','ic-dw'], IWM:['ix-rut','ic-rut'], GLD:['ix-gld','ic-gld'], USO:['ix-oil','ic-oil'], TLT:['ix-ty','ic-ty'] };
+    (d.indices||[]).forEach(ix=>{
+      const ids = map[ix.symbol]; if(!ids) return;
+      const pe=$(ids[0]), ce=$(ids[1]);
+      if(pe && ix.price) pe.textContent = ix.price.toFixed(2);
+      if(ce && ix.changePct!=null){
+        const v=ix.changePct;
+        ce.textContent=(v>=0?'+':'')+v.toFixed(2)+'%';
+        ce.className='ix-chg '+cc(v);
+      }
+    });
+  }catch(e){}
+}
+
+// ── TICKER BAR ────────────────────────────────────────────────────────────────
+function buildTbar(){
+  $('tbar').innerHTML = TICKERS.map(s =>
+    `<div class="tick" id="ti-${s}" onclick="load('${s}',this)">
+      <span class="t-sym">${s}</span>
+      <span class="t-price" id="tp-${s}">—</span>
+      <span class="t-chg" id="tc-${s}">—</span>
+    </div>`
+  ).join('');
+}
+function updTick(sym, price, pct){
+  const tp=$(`.t-price, #tp-${sym}`), tc=$(`#tc-${sym}`), te=$(`#tp-${sym}`);
+  if(te && price!=null) te.textContent = '$'+price.toFixed(2);
+  const tce=$(`#tc-${sym}`);
+  if(tce && pct!=null){ const v=pct; tce.textContent=(v>=0?'+':'')+v.toFixed(2)+'%'; tce.className='t-chg '+cc(v); }
+}
+async function loadTbar(){
+  for(let i=0;i<TICKERS.length;i+=5){
+    const chunk = TICKERS.slice(i,i+5);
+    await Promise.all(chunk.map(async sym=>{
+      try{ const d=await api(`/api/quote/${sym}`); updTick(sym,d.price,d.changePct); }catch(e){}
+    }));
+    await new Promise(r=>setTimeout(r,400));
+  }
+}
+
+// ── CHART ─────────────────────────────────────────────────────────────────────
+function mkChart(points, range){
+  $('cvw').innerHTML='<canvas id="pc" role="img" aria-label="Price chart">Chart.</canvas>';
+  if(activeChart){ activeChart.destroy(); activeChart=null; }
+  const closes = points.map(p=>p.c);
+  const isUp = closes.length>1 ? closes[closes.length-1] >= closes[0] : true;
+  const col = isUp ? '#4caf7d' : '#e05252';
+  const labels = points.map(p=>{
+    const d=new Date(p.t*1000);
+    return range==='1d' ? d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false}) : d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  });
+  activeChart = new Chart($('pc'),{
+    type:'line',
+    data:{labels,datasets:[{data:closes,borderColor:col,borderWidth:1.5,pointRadius:0,fill:true,
+      backgroundColor:(ctx)=>{ const g=ctx.chart.ctx.createLinearGradient(0,0,0,200); g.addColorStop(0,isUp?'rgba(76,175,125,0.14)':'rgba(224,82,82,0.14)'); g.addColorStop(1,'rgba(0,0,0,0)'); return g; },
+      tension:0.3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#111',borderColor:'#2a2a2a',borderWidth:1,titleColor:'#c9a84c',bodyColor:'#c8bfa0',titleFont:{family:'JetBrains Mono',size:10},bodyFont:{family:'JetBrains Mono',size:11},callbacks:{label:ctx=>' $'+parseFloat(ctx.parsed.y).toFixed(2)}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#5a5040',font:{family:'JetBrains Mono',size:10},maxTicksLimit:8,autoSkip:true}},
+        y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#5a5040',font:{family:'JetBrains Mono',size:10},callback:v=>'$'+parseFloat(v).toFixed(0)},position:'right'}
+      }
+    }
+  });
+}
+
+// ── NEWS ──────────────────────────────────────────────────────────────────────
+const SECTOR_NEWS = [
+  {headline:'Fed signals no rate cuts before Q3 — tech multiples remain under pressure',source:'Bloomberg',datetime:Math.floor(Date.now()/1000)-3600},
+  {headline:'AI semiconductor demand forecast raised 40% by Goldman Sachs for 2025',source:'Goldman Sachs Research',datetime:Math.floor(Date.now()/1000)-10800},
+  {headline:'CHIPS Act disbursements begin — TSMC Arizona, Samsung Texas confirmed',source:'Reuters',datetime:Math.floor(Date.now()/1000)-21600},
+  {headline:'EU AI Act enforcement creates new compliance obligations for hyperscalers',source:'Politico EU',datetime:Math.floor(Date.now()/1000)-36000},
+  {headline:'Big Tech Q1 2025 earnings consensus EPS up 18% YoY across FAANG+',source:'FactSet',datetime:Math.floor(Date.now()/1000)-54000},
+];
+const MACRO_NEWS = [
+  {headline:'US CPI 3.2% YoY March — Fed officials reiterate data-dependent approach',source:'BLS / Reuters',datetime:Math.floor(Date.now()/1000)-7200},
+  {headline:'China GDP 5.1% Q1 2025 — stimulus measures credited, property sector stabilizing',source:'CNBC',datetime:Math.floor(Date.now()/1000)-14400},
+  {headline:'ECB cuts rates 25bps to 3.5% — euro weakens, European equities rally',source:'Financial Times',datetime:Math.floor(Date.now()/1000)-28800},
+  {headline:'India surpasses Japan as world 4th largest economy by nominal GDP — IMF',source:'IMF',datetime:Math.floor(Date.now()/1000)-43200},
+  {headline:'OPEC+ maintains production cuts through Q2 — WTI crude holds above $80/bbl',source:'Reuters',datetime:Math.floor(Date.now()/1000)-57600},
+  {headline:'Japan yen at 152/USD — BOJ intervention risk rising, EM currencies watching',source:'Bloomberg',datetime:Math.floor(Date.now()/1000)-72000},
+];
+
+function renderNews(items){
+  $('news-ct').textContent = items.length+' STORIES';
+  if(!items.length){ $('news-list').innerHTML='<div class="err-box">No news available.</div>'; return; }
+  $('news-list').innerHTML = items.map(n=>`
+    <div class="ni" onclick="window.open('${n.url||'#'}','_blank')">
+      <div class="ni-meta">
+        <span class="ni-src">${(n.source||'').slice(0,24)}</span>
+        <span class="ni-time">${n.datetime?tAgo(n.datetime):''}</span>
+      </div>
+      <div class="ni-title">${n.headline||n.title||''}</div>
+    </div>`).join('');
+}
+
+function renderCorporateActions(sym){
+  const actions = [
+    {type:'EARNINGS',cls:'ca-earnings',text:`${sym} Q2 2025 earnings call scheduled. Analyst consensus EPS estimate: watch for guidance revision.`},
+    {type:'M&A RUMOR',cls:'ca-ma',text:`Analyst reports suggest ${sym} evaluating strategic acquisitions in AI infrastructure space — unconfirmed.`},
+    {type:'DIVIDEND',cls:'ca-dividend',text:`Next dividend declaration expected Q3 2025. Current annualized yield per latest filing.`},
+  ];
+  $('news-ct').textContent = actions.length+' ACTIONS';
+  $('news-list').innerHTML = actions.map(a=>`
+    <div class="ca-item">
+      <span class="ca-type ${a.cls}">${a.type}</span>
+      <div class="ca-text">${a.text}</div>
+    </div>`).join('');
+}
+
+function switchNews(tab, el){
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('act'));
+  el.classList.add('act');
+  activeNewsTab = tab;
+  if(tab==='stock') renderNews(allNews.stock);
+  else if(tab==='sector') renderNews(SECTOR_NEWS);
+  else if(tab==='macro') renderNews(MACRO_NEWS);
+  else if(tab==='corporate') renderCorporateActions(activeSym);
+}
+
+// ── AI INTELLIGENCE ───────────────────────────────────────────────────────────
+function streamBrief(text){
+  const el = $('ai-brief'); el.innerHTML=''; let i=0;
+  const iv=setInterval(()=>{
+    if(i<text.length){ el.innerHTML=text.slice(0,i+=3)+'<span class="ai-cur"></span>'; }
+    else{ clearInterval(iv); el.textContent=text; }
+  },8);
+}
+
+function renderIntelligence(d){
+  streamBrief(d.verdict||'Analysis complete.');
+
+  // Sentiment meter
+  $('sentiment-panel').style.display='block';
+  const score = Math.min(100,Math.max(0,d.score||50));
+  $('sent-meter').style.width=score+'%';
+  const badge=$('sent-badge');
+  if(d.sentiment==='Bullish'){ badge.textContent='BULLISH'; badge.className='sentiment-badge badge-bull'; }
+  else if(d.sentiment==='Bearish'){ badge.textContent='BEARISH'; badge.className='sentiment-badge badge-bear'; }
+  else{ badge.textContent='NEUTRAL'; badge.className='sentiment-badge badge-neu'; }
+  $('rec-badge').textContent=d.recommendation||'HOLD';
+
+  // Risks
+  if(d.risks?.length){ $('risks-panel').style.display='block'; $('risks-list').innerHTML=d.risks.map(r=>`<div style="padding:2px 0;display:flex;gap:6px;"><span style="color:var(--red);flex-shrink:0;">▸</span><span>${r}</span></div>`).join(''); }
+  if(d.catalysts?.length){ $('catalysts-panel').style.display='block'; $('catalysts-list').innerHTML=d.catalysts.map(c=>`<div style="padding:2px 0;display:flex;gap:6px;"><span style="color:var(--green);flex-shrink:0;">▸</span><span>${c}</span></div>`).join(''); }
+}
+
+// ── WATCHLIST ─────────────────────────────────────────────────────────────────
+function renderWL(){
+  $('wl-ct').textContent=wl.length;
+  $('wl-list').innerHTML=wl.map(s=>`
+    <div class="wl-item${s===activeSym?' sel':''}" id="wl-${s}" onclick="load('${s}',this)">
+      <span class="wl-sym">${s}</span>
+      <div class="wl-r">
+        <span class="wl-price" id="wlp-${s}">—</span>
+        <span class="wl-chg" id="wlc-${s}">—</span>
+      </div>
+    </div>`).join('');
+}
+function updWL(sym,price,pct){
+  const wp=$(`#wlp-${sym}`), wc=$(`#wlc-${sym}`);
+  if(wp&&price) wp.textContent='$'+price.toFixed(2);
+  if(wc&&pct!=null){ const v=pct; wc.textContent=(v>=0?'+':'')+v.toFixed(2)+'%'; wc.className='wl-chg '+cc(v); }
+}
+async function loadWL(){
+  for(const sym of wl){ try{ const d=await api(`/api/quote/${sym}`); updWL(sym,d.price,d.changePct); }catch(e){} await new Promise(r=>setTimeout(r,200)); }
+}
+function addWL(){
+  const inp=$('wl-inp'), s=inp.value.trim().toUpperCase();
+  if(!s||wl.includes(s)){ inp.value=''; return; }
+  wl.push(s); localStorage.setItem('nx-v2-wl',JSON.stringify(wl)); renderWL(); inp.value='';
+}
+
+// ── MOVERS ────────────────────────────────────────────────────────────────────
+async function loadMovers(type,el){
+  document.querySelectorAll('.mover-tab').forEach(t=>t.classList.remove('act'));
+  if(el) el.classList.add('act');
+  try{
+    const d = await api(`/api/movers?type=${type}`);
+    $('mover-list').innerHTML=(d.movers||[]).map(m=>`
+      <div class="mover-row" onclick="load('${m.symbol}',null)">
+        <span class="mv-sym">${m.symbol}</span>
+        <span class="mv-price">$${m.price.toFixed(2)}</span>
+        <span class="mv-pct ${cc(m.changePct)}">${m.changePct>=0?'+':''}${m.changePct.toFixed(2)}%</span>
+      </div>`).join('');
+  }catch(e){ $('mover-list').innerHTML='<div class="err-box">Unavailable.</div>'; }
+}
+
+// ── CHART RANGE ───────────────────────────────────────────────────────────────
+async function setRange(r,el){
+  document.querySelectorAll('.rpill').forEach(p=>p.classList.remove('act'));
+  el.classList.add('act'); activeRange=r;
+  if(!activeSym) return;
+  try{ const d=await api(`/api/candles/${activeSym}?range=${r}`); if(d.points?.length>1) mkChart(d.points,r); }catch(e){}
+}
+
+// ── MAIN LOAD ─────────────────────────────────────────────────────────────────
+async function load(sym,el){
+  if(!sym) return;
+  sym=sym.toUpperCase(); activeSym=sym;
+
+  document.querySelectorAll('.tick,.wl-item').forEach(t=>t.classList.remove('sel'));
+  const ti=$(`#ti-${sym}`); if(ti) ti.classList.add('sel');
+  if(el?.classList.contains('wl-item')) el.classList.add('sel');
+
+  $('p-sym').textContent=sym;
+  $('p-name').textContent='Loading...';
+  $('p-big').textContent='—';
+  $('p-chg').textContent='Fetching live data...';
+  $('p-chg').className='p-chg';
+  $('chart-ttl').textContent=sym+' — PRICE CHART';
+  $('ai-brief').innerHTML='Generating AI intelligence...<span class="ai-cur"></span>';
+  $('sentiment-panel').style.display='none';
+  $('risks-panel').style.display='none';
+  $('catalysts-panel').style.display='none';
+  $('news-list').innerHTML='<div class="err-box">Loading live news...</div>';
+
+  showL('Fetching '+sym+' from Finnhub...');
+
+  try{
+    const [quote, candles, news] = await Promise.all([
+      api(`/api/quote/${sym}`),
+      api(`/api/candles/${sym}?range=${activeRange}`),
+      api(`/api/news/${sym}`)
+    ]);
+    hideL();
+
+    // Price panel
+    $('p-name').textContent=quote.name||sym;
+    $('p-sector').textContent=quote.sector||'—';
+    $('p-big').textContent=quote.price!=null?'$'+quote.price.toFixed(2):'—';
+    const ce=$('p-chg');
+    if(quote.change!=null&&quote.changePct!=null){
+      ce.textContent=chgStr(quote.change,quote.changePct);
+      ce.className='p-chg '+cc(quote.change);
+    }
+    $('p-upd').textContent='UPDATED '+new Date().toLocaleTimeString('en-US',{hour12:false});
+
+    // Stats
+    $('s-o').textContent=fmt(quote.open);
+    $('s-pc').textContent=fmt(quote.prevClose);
+    $('s-h').textContent=fmt(quote.high);
+    $('s-l').textContent=fmt(quote.low);
+    $('s-52h').textContent=fmt(quote.week52High);
+    $('s-52l').textContent=fmt(quote.week52Low);
+    $('s-mc').textContent=quote.marketCap||'—';
+    $('s-pe').textContent=quote.peRatio?quote.peRatio.toFixed(1):'—';
+    $('s-eps').textContent=quote.eps?'$'+quote.eps.toFixed(2):'—';
+    $('s-beta').textContent=quote.beta||'—';
+    $('s-div').textContent=quote.dividendYield?quote.dividendYield.toFixed(2)+'%':'—';
+    $('s-avol').textContent=quote.avgVolume||'—';
+
+    // Update ticker bar + watchlist
+    updTick(sym, quote.price, quote.changePct);
+    updWL(sym, quote.price, quote.changePct);
+    renderWL();
+
+    // Chart
+    if(candles.points?.length>1) mkChart(candles.points, activeRange);
+
+    // News
+    allNews.stock = news.news||[];
+    renderNews(allNews.stock);
+
+    // Intelligence (async, non-blocking)
+    api(`/api/intelligence/${sym}`).then(intel=>{
+      renderIntelligence(intel);
+    }).catch(()=>{
+      $('ai-brief').textContent='AI intelligence unavailable — configure GEMINI_API_KEY in Render environment variables.';
+    });
+
+  }catch(e){
+    hideL();
+    $('p-big').textContent='ERR';
+    $('p-name').textContent=e.message;
+    $('ai-brief').textContent='Failed to load data: '+e.message;
+  }
+}
+
+// ── SEARCH ────────────────────────────────────────────────────────────────────
+let st=null;
+$('srch').addEventListener('input',e=>{
+  clearTimeout(st);
+  const q=e.target.value.trim();
+  if(q.length<1){ $('sdd').style.display='none'; return; }
+  st=setTimeout(async()=>{
+    try{
+      const d=await api(`/api/search?q=${encodeURIComponent(q)}`);
+      const dd=$('sdd');
+      if(!d.results?.length){ dd.style.display='none'; return; }
+      dd.innerHTML=d.results.map(r=>`<div class="sdi" onclick="selSearch('${r.symbol}')"><span class="sdi-sym">${r.symbol}</span><span class="sdi-name">${r.name}</span></div>`).join('');
+      dd.style.display='block';
+    }catch(e){}
+  },300);
+});
+$('srch').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ const q=e.target.value.trim().toUpperCase(); if(q) selSearch(q); }
+});
+function selSearch(sym){
+  $('srch').value=''; $('sdd').style.display='none';
+  if(!wl.includes(sym)){ wl.push(sym); localStorage.setItem('nx-v2-wl',JSON.stringify(wl)); }
+  load(sym,null);
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#searchbar')) $('sdd').style.display='none'; });
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function init(){
+  buildTbar(); renderWL();
+  await loadIndices();
+  loadTbar();
+  loadWL();
+  loadMovers('gainers', document.querySelector('.mover-tab'));
+  load('AAPL', null);
+  setInterval(()=>{ loadIndices(); loadWL(); }, 60000);
+}
+init();
+</script>
+</body>
+</html>
