@@ -1,2 +1,4 @@
-FINNHUB_API_KEY=your_finnhub_key_here
-GEMINI_API_KEY=your_gemini_key_here
+import os
+
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
