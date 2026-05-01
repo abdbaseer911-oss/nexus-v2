@@ -10,6 +10,7 @@ import google.generativeai as genai
 
 load_dotenv()
 
+# Securely retrieve the keys from the environment
 FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY")
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
