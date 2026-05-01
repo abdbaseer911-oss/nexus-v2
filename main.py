@@ -1,0 +1,2 @@
+FINNHUB_API_KEY=your_finnhub_key_here
+GEMINI_API_KEY=your_gemini_key_here
