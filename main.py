@@ -10,8 +10,8 @@ import google.generativeai as genai
 
 load_dotenv()
 
-FINNHUB_KEY = os.getenv("FINNHUB_API_KEY", "")
-GEMINI_KEY = os.getenv("GEMINI_API_KEY", "")
+FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY")
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
