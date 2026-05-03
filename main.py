@@ -25,7 +25,7 @@ if GEMINI_KEY:
 app = FastAPI(title="NEXUS API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-FH = "https://finnhub.io/api/v1"
+FH = "https://api.finnhub.io/api/v1"
 
 async def fh(path: str):
     if not FINNHUB_KEY:
